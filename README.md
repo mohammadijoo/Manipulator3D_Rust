@@ -467,9 +467,9 @@ Rendering helpers:
 
 Below is a link to the simulation video on YouTube.
 
-<a href="https://www.youtube.com/watch?v=9-B7WbkG7cM" target="_blank">
+<a href="" target="_blank">
   <img
-    src="https://i.ytimg.com/vi/9-B7WbkG7cM/maxresdefault.jpg"
+    src="https://i.ytimg.com/vi/aaa/maxresdefault.jpg"
     alt="3D simulation of an RRR manipulator written in Rust"
     style="max-width: 100%; border-radius: 10px; box-shadow: 0 6px 18px rgba(0,0,0,0.18); margin-top: 0.5rem;"
   />
