@@ -1,7 +1,6 @@
-\
 <div style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; line-height: 1.6;">
 
-  <h1 align="center" style="margin-bottom: 0.2em;">Manipulator3D — 3-DOF Two-Link Robot Arm (Analytic IK + Pick&amp;Place)</h1>
+  <h1 align="center" style="margin-bottom: 0.2em;">Manipulator3D — 3-DOF Two-Link Robot Arm (Analytic IK + Pick&amp;Place) — Rust</h1>
 
   <p style="font-size: 0.98rem; max-width: 920px; margin: 0.2rem auto 0;">
     A Rust simulation and visualization project for a <strong>3-DOF, two-link manipulator</strong> with a <strong>fixed base</strong> in 3D space.
@@ -12,11 +11,12 @@
     <li><strong>Joint 0 (base):</strong> revolute yaw about the <strong>+Z axis</strong> at the origin <code>(0,0,0)</code>.</li>
     <li><strong>Joints 1–2 (links):</strong> revolute pitch angles defining motion in the arm’s vertical plane (relative to the <strong>X–Y plane</strong>).</li>
     <li><strong>IK:</strong> reduces the 3D target to a 2D planar problem in <code>(r,z)</code>, solves with the <strong>law of cosines</strong>, and supports elbow-up / elbow-down branches.</li>
-    <li><strong>Visualization:</strong> rendered with <strong>raylib</strong> (via the <strong>raylib</strong> Rust crate), including an overlay panel and a suction-tool “ball” pick-and-place animation.</li>
+    <li><strong>Visualization:</strong> rendered with <strong>raylib</strong>, including an overlay panel and a simple suction-tool “ball” pick-and-place animation.</li>
+    <li><strong>User input:</strong> START/GOAL are entered in the <strong>UI overlay</strong> (no console prompts). Press <strong>PLAY</strong> to start; press <strong>PAUSE</strong> to edit inputs.</li>
   </ul>
 
   <p align="center" style="font-size: 1rem; color: #666; margin: 0.35rem auto 0;">
-    Build system: <strong>Cargo</strong> • Rendering: <strong>raylib</strong> • Language: <strong>Rust</strong> • IK: <strong>Closed-form</strong>
+    Build system: <strong>Cargo</strong> • Rendering: <strong>raylib</strong> • Language: <strong>Rust (Edition 2021)</strong> • IK: <strong>Closed-form</strong>
   </p>
 
 </div>
@@ -32,6 +32,7 @@
   <li> <a href="#repository-structure">Repository structure</a></li>
   <li> <a href="#robotics-kinematics-dynamics-and-ik">Robotics: kinematics, dynamics, and inverse kinematics</a></li>
   <li> <a href="#building-the-project">Building the project</a></li>
+  <li> <a href="#operating-system-guides-windows--macos--linux">Operating system guides (Windows / macOS / Linux)</a></li>
   <li> <a href="#running-the-simulator">Running the simulator</a></li>
   <li> <a href="#repository-file-guide">Repository file guide (full explanation)</a></li>
   <li> <a href="#simulation-video">Simulation video</a></li>
@@ -57,15 +58,15 @@ This project simulates a **3-DOF, two-link manipulator** mounted on a **fixed ba
   5) GOAL → HOME  
   6) wait briefly and repeat  
 
-**User inputs** (via the UI overlay panel):
+**User inputs** (via overlay panel):
 - START position `(x y z)` and GOAL position `(x y z)`
 - Constraint enforced by IK: **z must be ≥ 0**
 - Reachability enforced by IK: `|p|` must be within the arm’s reachable shell.
 
-**Important behavior:**
-- The end-effector starts from a fixed HOME point: `(2 2 2)`.
-- When paused, you can edit START/GOAL in the overlay.
-- Press **PLAY** to validate inputs and start a new pick-and-place loop with the new points.
+**Controls / interaction**
+- Mouse wheel: zoom camera
+- F11: toggle fullscreen
+- Overlay includes a **PAUSE/PLAY** button, editable START/GOAL fields, and reachability feedback
 
 ---
 
@@ -76,8 +77,13 @@ This project simulates a **3-DOF, two-link manipulator** mounted on a **fixed ba
 ```txt
 Manipulator3D_Rust/
   Cargo.toml
+  Cargo.lock
   README.md
-  .gitignore
+  .cargo/
+    config.toml
+  resources/
+    fonts/
+      Inter-Regular.ttf
   src/
     main.rs
     robot/
@@ -92,10 +98,18 @@ Manipulator3D_Rust/
     render/
       mod.rs
       draw_utils.rs
-  resources/
-    fonts/
-      (optional) Inter-Regular.ttf
 ```
+
+### About `.cargo/config.toml` (important)
+
+This repository includes a `.cargo/config.toml` tuned for **slow/unstable networks** and environments where Cargo downloads time out.
+If your network is stable, you can keep it as-is (it does not change runtime behavior), or adjust the values.
+
+Typical improvements it provides:
+- avoids flaky HTTP/2 multiplexing
+- increases timeouts/retries
+- relaxes low-speed limits for very slow links
+- uses the `git` crates.io index protocol to avoid sparse-index issues
 
 ---
 
@@ -145,9 +159,6 @@ Let link lengths be $L_1$ and $L_2$. Then:
 \mathbf{p}_{ee} = \mathbf{p}_1 + L_2\cos(q_1+q_2)\,\mathbf{u} + L_2\sin(q_1+q_2)\,\mathbf{k}
 ```
 
-This is implemented in:
-- `robot::RobotArm::forward_kinematics()`
-
 ### 3) Workspace (reachability) check
 
 This manipulator is effectively a 2-link arm in a vertical plane, rotated by yaw. Therefore the reachable radius must satisfy:
@@ -162,7 +173,7 @@ r_{\min} = |L_1 - L_2|,\quad r_{\max} = L_1 + L_2
 
 The implementation enforces:
 - `target.z >= 0`
-- `|p|` within `[min_reach(), max_reach()]`
+- `|p|` within `[MinReach(), MaxReach()]`
 
 ### 4) Analytic inverse kinematics (IK): how it works here
 
@@ -210,39 +221,6 @@ Then:
 q_1 = \mathrm{atan2}(z, r) - \mathrm{atan2}(k_2, k_1)
 ```
 
-This is implemented in:
-- `robot::RobotArm::solve_ik()`
-
-### 5) Dynamics (what is implemented vs. what is prepared)
-
-This repository is primarily a **kinematic + trajectory** simulator:
-
-- The EE follows a commanded Cartesian trajectory.
-- IK converts EE targets into joint angles.
-- FK is used for rendering joint/link positions.
-
-However, the code also defines **mass and inertia properties** for each link (uniform rod approximations):
-
-- About center of mass:
-
-```math
-I_{cm} = \frac{1}{12} mL^2
-```
-
-- About the joint at one end:
-
-```math
-I_{joint} = \frac{1}{3} mL^2
-```
-
-These are computed in:
-- `robot::LinkParams::recompute_inertia()`
-
-Currently, those values are used for **display/inspection** (overlay panel) and as a foundation for extending the project to:
-- forward dynamics (torques → accelerations),
-- gravity and Coriolis terms,
-- joint-space controllers (PD, computed torque, etc.).
-
 ---
 
 <a id="building-the-project"></a>
@@ -251,15 +229,120 @@ Currently, those values are used for **display/inspection** (overlay panel) and 
 
 ### Dependencies
 
-- Rust toolchain (stable)
-- A working C toolchain (required by raylib’s build)
-- CMake (commonly required when building raylib on many platforms)
+- Rust toolchain (Rustup recommended)
+- A native C/C++ toolchain (raylib is built natively via `raylib-sys`)
+  - Windows: Visual Studio Build Tools / MSVC
+  - macOS: Xcode Command Line Tools
+  - Linux: build-essential (GCC/Clang + make)
 
-### Build commands
+### Build commands (recommended)
+
+From the repository root (where `Cargo.toml` is):
 
 ```bash
+cargo clean
 cargo build --release
 ```
+
+---
+
+<a id="operating-system-guides-windows--macos--linux"></a>
+
+## Operating system guides (Windows / macOS / Linux)
+
+### Windows 10/11 (MSVC toolchain)
+
+This project targets the <strong>MSVC</strong> Rust toolchain on Windows. The most reliable approach is to build from the
+<strong>Developer PowerShell for VS 2022</strong> (or the <strong>x64 Native Tools Command Prompt</strong>), because it pre-configures the
+MSVC compiler + linker environment.
+
+#### Recommended workflow (Developer PowerShell)
+
+1) Install prerequisites:
+<ul>
+  <li><strong>Rust</strong> (Rustup) using the <code>x86_64-pc-windows-msvc</code> toolchain</li>
+  <li><strong>Visual Studio 2022 Build Tools</strong> with the workload: <em>Desktop development with C++</em></li>
+  <li><strong>Windows 10/11 SDK</strong> (installed with the Build Tools when selected)</li>
+</ul>
+
+2) Open: <strong>Developer PowerShell for VS 2022</strong>.
+
+3) Build and run:
+<pre><code>cd path\to\Manipulator3D_Rust
+cargo fetch
+cargo run --release</code></pre>
+
+#### If you see linker errors (kernel32.lib not found / wrong link.exe)
+
+Some Windows environments (especially when MSYS2 / Git Bash is installed) can accidentally pick up a non-MSVC <code>link.exe</code>.
+If you see errors referencing paths like <code>C:\msys64\usr\bin\link.exe</code>, you can explicitly configure the MSVC libraries and linker
+inside PowerShell before building.
+
+Run the following PowerShell commands (edit the version/path to match your machine):
+
+<pre><code># 1) MSVC version you have (taken from your MSVC folder name)
+#    Change this to match your system.
+#    How to find it:
+#      Open:   C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\
+#      Pick the newest folder name (example: 14.44.35207)
+$msvcVer = "14.44.35207"
+
+# 2) MSVC lib directory (x64)
+$msvcLib = "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\$msvcVer\lib\x64"
+
+# 3) Windows SDK (Windows Kits) library directories
+$sdkRoot = "C:\Program Files (x86)\Windows Kits\10\Lib"
+$sdkVer  = (Get-ChildItem $sdkRoot -Directory | Sort-Object Name -Descending | Select-Object -First 1).Name
+
+$umLib   = Join-Path $sdkRoot "$sdkVer\um\x64"
+$ucrtLib = Join-Path $sdkRoot "$sdkVer\ucrt\x64"
+
+# 4) Sanity checks (should print True / True)
+Test-Path (Join-Path $umLib "kernel32.lib")
+Test-Path (Join-Path $msvcLib "msvcrt.lib")
+
+# 5) Tell the linker where to find .lib files
+$env:LIB = "$msvcLib;$ucrtLib;$umLib;$env:LIB"
+
+# 6) Force Cargo to use MSVC's linker (NOT MSYS2/Git's link.exe)
+$env:CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER = "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\bin\Hostx64\x64\link.exe"
+
+# 7) Build and run from the repository root (where Cargo.toml is)
+cd "$env:USERPROFILE\Desktop\Manipulator3D_Rust"
+
+cargo clean
+cargo fetch
+cargo run --release
+</code></pre>
+
+### macOS
+
+1) Install Rust (or verify it is installed):
+<pre><code>rustc --version
+cargo --version</code></pre>
+
+2) Ensure build tools are available (Xcode Command Line Tools):
+<pre><code>xcode-select --install</code></pre>
+
+3) Run:
+<pre><code>cd path/to/Manipulator3D_Rust
+cargo fetch
+cargo run --release</code></pre>
+
+### Linux (Ubuntu/Debian)
+
+1) Install Rust (or verify it is installed):
+<pre><code>rustc --version
+cargo --version</code></pre>
+
+2) Install native build dependencies:
+<pre><code>sudo apt-get update
+sudo apt-get install -y build-essential pkg-config</code></pre>
+
+3) Run:
+<pre><code>cd path/to/Manipulator3D_Rust
+cargo fetch
+cargo run --release</code></pre>
 
 ---
 
@@ -267,7 +350,7 @@ cargo build --release
 
 ## Running the simulator
 
-### Run command
+From the repository root:
 
 ```bash
 cargo fetch
@@ -278,10 +361,10 @@ cargo run --release
 
 - Mouse wheel: zoom camera
 - F11: toggle fullscreen
-- Overlay includes:
-  - a **PAUSE/PLAY** button
-  - START/GOAL text inputs (editable when paused)
-  - reachability feedback (in/out of workspace)
+- Overlay:
+  - edit START and GOAL when paused
+  - press PLAY to start the simulation
+  - press PAUSE to stop and edit inputs again
 
 ---
 
@@ -293,70 +376,75 @@ This section explains every important file in the repository and its role.
 
 ### `Cargo.toml`
 
-Key responsibilities:
+- Declares the package and dependencies.
+- Uses `raylib` crate (which pulls `raylib-sys` for native compilation).
 
-- configures the Rust crate
-- depends on `raylib` for rendering and input
-- uses Rust 2021 edition
+---
+
+### `.cargo/config.toml`
+
+- Cargo networking configuration tuned for slow/unstable connections.
+- Useful when downloads repeatedly timeout or reset.
 
 ---
 
 ### `src/main.rs`
 
-This is the “application” entry point and runtime loop:
+Runtime loop + simulation state machine:
 
-- creates the robot model (link lengths/masses)
-- defines a pick-and-place finite-state machine:
+- reads START/GOAL from overlay input fields
+- validates reachability using IK for:
+  - fixed HOME EE point
+  - START
+  - GOAL
+- runs a pick-and-place finite-state machine:
   - HOME → START → PICK → GOAL → PLACE → HOME → WAIT → LOOP
-- generates a **linear Cartesian trajectory** between targets
+- generates a linear Cartesian trajectory between targets
 - runs IK each frame to get joint angles for the current EE target
 - calls FK for rendering joint/link positions
 - renders:
   - robot geometry, axes, ball, suction tool
-  - overlay panel (status, parameters, pause/play, START/GOAL inputs)
+  - overlay panel (inputs, parameters, status, play/pause)
 
 ---
 
 ### `src/robot/robot_arm.rs`
 
-Declares and implements the robot model and kinematics API:
+Implements analytic FK and IK:
 
-- `LinkParams`: link length, mass, inertia approximations (rod model)
-- `JointAngles`: the 3 joint variables (yaw + 2 pitches)
-- `FKResult`: base/joints/EE positions for rendering
-- `IKResult`: reachability + solution angles + message
-- `RobotArm`:
-  - `solve_ik()`
-  - `forward_kinematics()`
-  - reach limits: `min_reach()`, `max_reach()`
+- IK:
+  - rejects invalid targets (z < 0)
+  - checks radius bounds (min/max reach)
+  - computes yaw from `atan2(y,x)`
+  - reduces to planar IK in `(r,z)`
+  - solves elbow angle via law of cosines
+  - solves shoulder angle via triangle decomposition
+- FK:
+  - constructs radial axis from yaw
+  - builds elbow and EE positions from link lengths and pitch angles
 
 ---
 
 ### `src/sim/trajectory.rs`
 
-Implements a minimal linear trajectory generator:
+Minimal trajectory generator:
 
-- `sim::LinearTrajectory`:
-  - `reset(from,to,duration)`
-  - `update(dt)`
-  - `position()`
-  - `finished()`
+- linear interpolation with normalized time:
+  - $\alpha = \mathrm{clamp}(t/T, 0, 1)$
+- position:
+  - $\mathbf{p}(\alpha) = \mathbf{a} + (\mathbf{b}-\mathbf{a})\alpha$
 
 ---
 
 ### `src/ui/overlay.rs`
 
-Implements the overlay panel:
+Overlay rendering and interaction:
 
-- draws a semi-transparent panel
-- displays:
-  - link lengths, masses, inertias
-  - workspace bounds
-  - start/goal norms and coordinates
-  - phase text and reachability warnings
-- implements:
-  - clickable PAUSE/PLAY button
-  - START/GOAL text input fields (editable while paused)
+- editable START and GOAL input boxes
+- reachability checks and status display
+- PLAY/PAUSE button:
+  - PLAY validates inputs and starts a new simulation
+  - PAUSE stops simulation so inputs can be edited
 
 ---
 
@@ -364,14 +452,12 @@ Implements the overlay panel:
 
 Rendering helpers:
 
-- text helpers:
-  - `draw_text_bold()`
-  - `draw_text_small()`
+- text helpers (small and bold)
 - robot visuals:
-  - `draw_robot_base_pedestal()`
-  - `draw_robot_joint_housing()`
-  - `draw_tapered_link()`
-  - `draw_suction_tool()`
+  - base pedestal + flange
+  - joint housings
+  - tapered links
+  - suction tool
 
 ---
 
@@ -384,7 +470,7 @@ Below is a link to the simulation video on YouTube.
 <a href="https://www.youtube.com/watch?v=9-B7WbkG7cM" target="_blank">
   <img
     src="https://i.ytimg.com/vi/9-B7WbkG7cM/maxresdefault.jpg"
-    alt="3D simulation of an RRR manipulator"
+    alt="3D simulation of an RRR manipulator written in Rust"
     style="max-width: 100%; border-radius: 10px; box-shadow: 0 6px 18px rgba(0,0,0,0.18); margin-top: 0.5rem;"
   />
 </a>
@@ -395,14 +481,30 @@ Below is a link to the simulation video on YouTube.
 
 ## Troubleshooting
 
-### Build errors mentioning C/CMake/raylib
+### Cargo downloads are extremely slow or fail with timeouts/resets
 
-- Ensure you have:
-  - a working C toolchain (MSVC Build Tools on Windows, or gcc/clang on Linux/macOS),
-  - CMake installed and on PATH.
+- This repo includes `.cargo/config.toml` to improve reliability on slow/unstable networks.
+- If you still see timeouts:
+  - try again later or from a different network
+  - ensure proxies/VPNs are not interfering with `static.crates.io`
 
-### Window opens but UI font looks different
+### Build fails on Windows with linker errors
 
-- If `resources/fonts/Inter-Regular.ttf` is missing, the program falls back to system fonts (or the default raylib font).
-- To use Inter, place `Inter-Regular.ttf` into:
-  - `resources/fonts/Inter-Regular.ttf`
+- Use **Developer PowerShell for VS 2022**.
+- If `kernel32.lib` is missing or a wrong `link.exe` is used, follow the PowerShell configuration in:
+  - <a href="#windows-1011-msvc-toolchain">Windows 10/11 (MSVC toolchain)</a>
+
+### Build fails with `libclang` / bindgen related errors
+
+Some systems require LLVM/Clang to be installed for `bindgen`/`clang-sys` when building native dependencies.
+
+- Windows: install LLVM and ensure `libclang` is discoverable
+- macOS: Xcode Command Line Tools usually provide clang
+- Linux: install clang/llvm packages if needed
+
+### Start/Goal is “out of reach”
+
+- Ensure:
+  - `z >= 0`
+  - `|p|` is within the workspace shell:
+    - `[|L1 - L2|, L1 + L2]`
