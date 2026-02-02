@@ -1,0 +1,26 @@
+# Cargo networking settings for very slow / unstable connections.
+# Prevents "failed to transfer more than 10 bytes in 120s" aborts by
+# lowering the low-speed threshold and increasing timeouts.
+
+[http]
+# Many networks/proxies break HTTP/2. Force HTTP/1.1.
+multiplexing = false
+
+# Timeout window used by the low-speed check.
+# Make it large so Cargo does not abort slow downloads.
+timeout = 900
+
+# If average transfer speed is below this (bytes/sec) for `timeout` seconds,
+# Cargo aborts and retries. Default is 10; reduce it for slow links.
+low-speed-limit = 1
+
+[net]
+# More retries for spurious resets/timeouts.
+retry = 20
+
+# Use system git (helps some corporate/proxy environments).
+git-fetch-with-cli = true
+
+[registries.crates-io]
+# You already downloaded the git index; keep using it.
+protocol = "git"

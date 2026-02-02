@@ -1,0 +1,10 @@
+[package]
+name = "manipulator3d"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "3-DOF two-link manipulator (analytic IK + pick&place) rendered with raylib"
+repository = "https://github.com/mohammadijoo/Manipulator3D_Rust"
+
+[dependencies]
+raylib = "5.5.1"
